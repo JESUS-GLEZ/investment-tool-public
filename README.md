@@ -1,4 +1,4 @@
-# Investment Tool
+# Portfolio Research Lab
 
 Research and compare long-only portfolio strategies. The app records data windows,
 portfolio weights, simulated trades and performance so runs can be compared and
