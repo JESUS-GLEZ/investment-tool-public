@@ -1,0 +1,44 @@
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Local config and secrets
+**/.env
+**/.env.*
+!**/.env.example
+config.local.ini
+
+# Data (large files, not needed in image)
+data/
+**/*.pkl
+**/*.pickle
+**/*.parquet
+
+# Frontend node_modules (rebuilt in image)
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+lightning_logs/
+src/investment_tool/lightning_logs/
+
+# Misc
+old/
+plots/
+.DS_Store

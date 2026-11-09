@@ -1,0 +1,40 @@
+{
+  "data_source": "alpaca",
+  "asset_config_file": "example_asset_universe.json",
+  "frequency": "monthly",
+  "historical_start_date": "2022-01-01",
+  "historical_end_date": "2024-12-31",
+  "backtest_start_date": "2024-10-01",
+  "initial_cash": 1000.0,
+  "transaction_cost_rate": 0.001,
+  "risk_free_rate": 0.0,
+  "validation_level": "warn",
+  "output_mode": "standard",
+  "min_assets": 2,
+  "max_assets": 3,
+  "population_size": 40,
+  "n_generations": 800,
+  "strategy_types": [],
+  "strategy_variants": [
+    {
+      "name": "Quickstart optimization",
+      "strategy_type": "optimization",
+      "return_estimator": "ewm_6",
+      "balance": "risk_contributions",
+      "selection": "sharpe",
+      "news_shortlist": false,
+      "min_assets": 2,
+      "max_assets": 3,
+      "population_size": 40,
+      "n_generations": 800,
+      "n_restarts": 1,
+      "random_seed": 0,
+      "search_seconds": null,
+      "seed_max_subsets": 64,
+      "seed_beam_width": 3,
+      "refinement_supports": 0
+    }
+  ],
+  "include_benchmark": true,
+  "benchmark_asset": "SPY"
+}

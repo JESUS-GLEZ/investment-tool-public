@@ -1,0 +1,115 @@
+name: Dependency security reports
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-regression:
+    name: Python advisory regression gate
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Read the exact PR base lock without executing base code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .security-base
+          sparse-checkout: poetry.lock
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version-file: .python-version
+
+      - name: Compare complete base and proposed lock inventories
+        run: python tools/security/python_regression.py --base-lock .security-base/poetry.lock --head-lock poetry.lock --output python-regression.json
+
+      - name: Retain comparison evidence including failed collections
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: python-advisory-regression
+          path: python-regression.json
+          if-no-files-found: error
+          retention-days: 14
+
+  inventory:
+    name: Python vulnerability report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version-file: .python-version
+
+      - name: Verify complete collection and failure behavior without network
+        run: python -m unittest discover -s tools/security -v
+
+      - name: Collect all exact locked PyPI records from OSV
+        run: python tools/security/python_audit.py --lock poetry.lock --output python-vulnerabilities.json
+
+      - name: Retain the complete inventory for triage
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: python-vulnerability-inventory
+          path: python-vulnerabilities.json
+          if-no-files-found: error
+          retention-days: 14
+
+  frontend-inventory:
+    name: Frontend vulnerability report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: frontend/.nvmrc
+          package-manager-cache: false
+
+      - name: Collect locked frontend advisories and reject high or critical findings
+        run: npm audit --package-lock-only --include=dev --ignore-scripts --audit-level=high --json > npm-vulnerabilities.json
+
+      - name: Retain the frontend report including failed audits
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: frontend-vulnerability-inventory
+          path: frontend/npm-vulnerabilities.json
+          if-no-files-found: error
+          retention-days: 14

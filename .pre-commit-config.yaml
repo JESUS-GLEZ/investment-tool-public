@@ -1,0 +1,38 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.5.4
+    hooks:
+    -   id: ruff
+        args: [--fix]
+    -   id: ruff-format
+
+-   repo: local
+    hooks:
+    -   id: mypy
+        name: mypy
+        entry: poetry run mypy
+        language: system
+        pass_filenames: false
+
+    -   id: pytest-fast
+        name: pytest (fast — excludes slow evolutionary tests)
+        entry: poetry run pytest -q -m "not slow"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+    -   id: frontend-test
+        name: vitest (frontend)
+        entry: bash -c "cd frontend && npm test"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

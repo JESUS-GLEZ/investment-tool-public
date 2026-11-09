@@ -1,0 +1,159 @@
+# docker-compose.prod.yml — Local full-stack build for the Investment Tool.
+#
+# Runs production images with host ports bound to loopback by default.
+# Nginx, FastAPI, Celery worker, PostgreSQL, Redis remain on the Compose network.
+#
+# Usage:
+#   python3 tools/setup_local.py  # first install only; never replace existing .env
+#   docker compose -f docker-compose.prod.yml build api worker nginx
+#   docker compose -f docker-compose.prod.yml up -d --wait postgres redis
+#   docker compose -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
+#   docker compose -f docker-compose.prod.yml up -d api worker nginx
+#
+# Logs:
+#   docker compose -f docker-compose.prod.yml logs -f api
+#   docker compose -f docker-compose.prod.yml logs -f worker
+#
+# Stop:
+#   docker compose -f docker-compose.prod.yml down
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Reverse proxy — serves frontend + proxies API/WS to backend
+  # --------------------------------------------------------------------------
+  nginx:
+    build:
+      context: .
+      target: nginx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+      # Uncomment for HTTPS:
+      # - "127.0.0.1:8443:443"
+    # volumes:
+      # Uncomment for Let's Encrypt:
+      # - ./certbot/conf:/etc/letsencrypt:ro
+      # - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # FastAPI backend
+  # --------------------------------------------------------------------------
+  api:
+    image: investment-tool-app:local
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - REDIS_URL=${REDIS_URL:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - ALPACA_API_SECRET=${ALPACA_API_SECRET:-}
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY:-}
+      - ENV=production
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/input:/app/data/input:ro
+      - ./data/output:/app/data/output
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Celery worker — runs background optimisation jobs
+  # --------------------------------------------------------------------------
+  worker:
+    image: investment-tool-app:local
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    # Large-universe backtests share this VM with the API and database.
+    command: ["celery", "-A", "api.worker.celery_app", "worker", "--loglevel=info", "--concurrency=${WORKER_CONCURRENCY:-1}"]
+    environment:
+      # NumPy and SciPy have separate BLAS pools; avoid oversubscribing the VM.
+      - OPENBLAS_NUM_THREADS=${WORKER_BLAS_THREADS:-1}
+      - DATABASE_URL=${DATABASE_URL:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - REDIS_URL=${REDIS_URL:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - ALPACA_API_SECRET=${ALPACA_API_SECRET:-}
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY:-}
+      - ENV=production
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+      POSTGRES_DB: ${POSTGRES_DB:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?Run python3 tools/setup_local.py from the repository root; check .env before starting Docker}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Adminer — lightweight database viewer (http://localhost:8081)
+  # --------------------------------------------------------------------------
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Redis
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pg_data:
+  redis_data:

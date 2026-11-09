@@ -1,0 +1,12 @@
+{
+  "name": "Small example — 7 assets",
+  "source": "Software quickstart: a fixed illustrative mix of ETFs, companies and Bitcoin. Not a researched investment universe or recommendation.",
+  "symbol_count": 6,
+  "groups": {
+    "equity_index_etfs": ["SPY", "QQQ"],
+    "treasury_etf": ["IEF"],
+    "gold_etf": ["GLD"],
+    "individual_companies": ["AAPL", "MSFT"]
+  },
+  "crypto_symbols": ["BTC/USD"]
+}

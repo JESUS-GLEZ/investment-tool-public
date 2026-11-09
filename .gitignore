@@ -1,0 +1,35 @@
+# Ignore IDE directories
+.idea/
+.vscode/
+
+# Virtual environments
+.venv/
+.venv-demo/
+/examples/output*/
+
+# Caches and compiled files
+.ruff_cache/
+__pycache__/
+
+# Data folder
+/data/
+*.pkl
+*.pickle
+*.parquet
+
+# Log files
+/src/investment_tool/lightning_logs/
+lightning_logs/
+
+# macOS system files
+**/.DS_Store
+.env
+.env.*
+!.env.example
+/old/
+/config.local.ini
+/plots/
+
+# Large vendored assets (loaded from CDN at runtime)
+frontend/public/plotly.min.js
+/export-metadata.json

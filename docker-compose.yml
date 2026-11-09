@@ -1,0 +1,48 @@
+# docker-compose.yml — Development services for the investment-tool web app.
+#
+# Services:
+#   postgres  — PostgreSQL 16 for persistent storage (job history, users, etc.)
+#   redis     — Redis 7 for Celery broker / result backend and caching
+#
+# Usage:
+#   docker compose up -d --wait   # start healthy backing services
+#   docker compose down           # stop; preserve volumes and saved data
+#
+# The FastAPI application and Celery workers are expected to run on the
+# host and connect
+# to these services via the ports exposed below.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: investment_tool
+      POSTGRES_PASSWORD: investment_tool
+      POSTGRES_DB: investment_tool
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U investment_tool"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pg_data:
+  redis_data:

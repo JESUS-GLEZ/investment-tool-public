@@ -1,0 +1,54 @@
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import ComparisonResults from "@/components/ui/ComparisonResults";
+import SavedChartBrowser from "@/components/ui/SavedChartBrowser";
+import RunComparisonResults from "@/components/ui/RunComparisonResults";
+import { savedCandidates } from "@/lib/savedComparison";
+import { backtest } from "../fixtures/savedRuns";
+vi.mock("@/components/ui/PlotlyChart", () => ({default: ({figure}: {figure: {layout: {title: string}}}) => <div data-testid="chart">{typeof figure.layout.title === "string" ? figure.layout.title : "Diagnostic chart"}</div>}));
+afterEach(cleanup);
+it("shows growth by default and keeps settings on a separate keyboard-accessible tab", async () => {
+  render(<ComparisonResults entries={savedCandidates(backtest()).slice(0, 2)} />);
+  expect(await screen.findByTestId("chart")).toHaveTextContent("Portfolio growth");
+  expect(screen.queryByRole("region", {name: "Configuration differences"})).not.toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("tab", {name: "Overview"}), {key: "End"});
+  expect(screen.getByRole("tab", {name: "Configuration"})).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Configuration");
+  expect(screen.getByRole("region", {name: "Configuration differences"})).toHaveTextContent("Population");
+});
+it("shows saved weights for the selected period, retaining incomplete totals", () => {
+  const entries = savedCandidates(backtest()).slice(0, 2);
+  entries[0].holdings = [{label: "January", weights: {AAA: 0.99}, incomplete: false}, {label: "February", weights: {BBB: 0.7, CCC: 0.29}, incomplete: false}];
+  entries[1].holdings = [{label: "January", weights: {DDD: 1}, incomplete: false}];
+  render(<ComparisonResults entries={entries} />);
+  fireEvent.click(screen.getByRole("tab", {name: "Holdings"}));
+  fireEvent.change(screen.getByLabelText("Recorded period"), {target: {value: "February"}});
+  expect(screen.getByText("BBB")).toBeInTheDocument();
+  expect(screen.getByText("29.00%")).toBeInTheDocument();
+  expect(screen.getByText(/total 99.00%/)).toBeInTheDocument();
+  expect(screen.getByText("Weights not recorded for this period.")).toBeInTheDocument();
+  expect(screen.queryByText("DDD")).not.toBeInTheDocument();
+});
+it("mounts one selected diagnostic at a time and narrows charts by configuration and recorded month", async () => {
+  render(<SavedChartBrowser configurations={["Risk", "Hybrid"]} figures={Array.from({length: 63}, (_, i) => ({data: [], layout: {title: {text: `${i % 2 ? "Risk" : "Hybrid"} — Pareto 2026-${i % 3 ? "02" : "01"}-01 #${i}`}}}))} />);
+  expect(screen.queryByTestId("chart")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Chart configuration"), {target: {value: "Risk"}});
+  fireEvent.change(screen.getByLabelText("Chart month"), {target: {value: "2026-01"}});
+  const options = within(screen.getByLabelText("Saved chart")).getAllByRole("option");
+  expect(options).toHaveLength(11);
+  fireEvent.change(screen.getByLabelText("Saved chart"), {target: {value: "3"}});
+  await screen.findByTestId("chart");
+  fireEvent.change(screen.getByLabelText("Saved chart"), {target: {value: "9"}});
+  expect(screen.getAllByTestId("chart")).toHaveLength(1);
+});
+it("limits displayed configurations while keeping all of them selectable", () => {
+  const base = savedCandidates(backtest());
+  const entries = [...base, {...base[0], id: "a:four", name: "Fourth"}];
+  render(<RunComparisonResults entries={entries} />);
+  fireEvent.click(screen.getByText(/Displayed configurations/));
+  expect(screen.getByRole("checkbox", {name: "Fourth"})).toBeDisabled();
+  fireEvent.click(screen.getByRole("checkbox", {name: "Target"}));
+  fireEvent.click(screen.getByRole("checkbox", {name: "Fourth"}));
+  expect(screen.getByRole("columnheader", {name: /Fourth/})).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", {name: /Target/})).not.toBeInTheDocument();
+});

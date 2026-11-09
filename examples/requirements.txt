@@ -1,0 +1,9 @@
+# Minimal offline-example environment; versions match poetry.lock.
+# The full application still uses pyproject.toml and poetry.lock.
+numpy==1.26.4
+pandas==2.3.3
+scipy==1.16.2
+platypus-opt==1.4.1
+matplotlib==3.10.7
+cvxpy==1.7.3
+plotly==5.24.1

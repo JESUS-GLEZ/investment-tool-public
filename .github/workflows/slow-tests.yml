@@ -1,0 +1,98 @@
+name: Slow Python tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slow-python-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection:
+    name: Select slow tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      required: ${{ steps.select.outputs.required }}
+    steps:
+      - name: Check out source and complete comparison history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify selection and gate behavior
+        run: python3 -m unittest discover -s tools/ci -v
+
+      - name: Select work from the event and Git trees
+        id: select
+        run: python3 tools/ci/slow_test_gate.py select --event-name "$GITHUB_EVENT_NAME" --event-path "$GITHUB_EVENT_PATH" >> "$GITHUB_OUTPUT"
+
+  slow:
+    name: Slow Python tests
+    needs: selection
+    if: ${{ needs.selection.outputs.required == 'true' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+      POETRY_NO_INTERACTION: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      MPLBACKEND: Agg
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version-file: .python-version
+
+      - name: Install pinned Poetry in a separate environment
+        run: |
+          python -m venv "$RUNNER_TEMP/poetry"
+          "$RUNNER_TEMP/poetry/bin/python" -m pip install --no-cache-dir poetry==2.5.1
+          echo "$RUNNER_TEMP/poetry/bin" >> "$GITHUB_PATH"
+
+      - name: Validate lockfile and install application and development dependencies
+        run: |
+          poetry check --lock
+          python -m venv .venv
+          poetry install --only main,dev --no-root
+          poetry run python -m pip check
+
+      - name: Run explicitly marked slow tests and report timings
+        run: poetry run pytest -q -m slow --disable-socket --allow-unix-socket --durations=25
+
+  gate:
+    name: Slow tests gate
+    needs: [selection, slow]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out gate implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Require successful selection and the appropriate test outcome
+        env:
+          SELECTION_RESULT: ${{ needs.selection.result }}
+          SLOW_REQUIRED: ${{ needs.selection.outputs.required }}
+          SLOW_RESULT: ${{ needs.slow.result }}
+        run: python3 tools/ci/slow_test_gate.py check --selection-result "$SELECTION_RESULT" --required "$SLOW_REQUIRED" --slow-result "$SLOW_RESULT"
