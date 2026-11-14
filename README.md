@@ -10,6 +10,8 @@ This three-minute walkthrough follows a historical portfolio research campaign
 from strategy configuration through backtest results, monthly allocations and
 optimisation diagnostics. It includes English subtitles.
 
+https://github.com/user-attachments/assets/4ec3b3fc-f72d-4b05-862b-9510fe0a181d
+
 ## Try it without credentials
 
 Run the [synthetic optimizer example](examples/README.md#offline-optimisation-example)
