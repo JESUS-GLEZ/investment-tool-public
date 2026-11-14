@@ -43,7 +43,8 @@ jobs:
       - name: Install pinned Poetry in a separate environment
         run: |
           python -m venv "$RUNNER_TEMP/poetry"
-          "$RUNNER_TEMP/poetry/bin/python" -m pip install --no-cache-dir poetry==2.5.1
+          # Match the Docker build and the checked-in Poetry 2.0 lock format.
+          "$RUNNER_TEMP/poetry/bin/python" -m pip install --no-cache-dir poetry==1.8.5
           echo "$RUNNER_TEMP/poetry/bin" >> "$GITHUB_PATH"
 
       - name: Validate lockfile and install application and development dependencies
