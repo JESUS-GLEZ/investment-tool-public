@@ -4,6 +4,12 @@ Research and compare long-only portfolio strategies. The app records data window
 portfolio weights, simulated trades and performance so runs can be compared and
 inspected. Investment mode proposes a rebalance; it does not place orders.
 
+## Watch the demo
+
+This three-minute walkthrough follows a historical portfolio research campaign
+from strategy configuration through backtest results, monthly allocations and
+optimisation diagnostics. It includes English subtitles.
+
 ## Try it without credentials
 
 Run the [synthetic optimizer example](examples/README.md#offline-optimisation-example)
